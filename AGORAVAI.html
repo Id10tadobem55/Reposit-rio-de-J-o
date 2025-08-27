@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Calculadora Científica</title>
+<style>
+  :root {
+    --bg: #121212;
+    --num-bg: #1e1e1e;
+    --func-bg: #2c2c2c;
+    --op-bg: #ee0a0a;
+    --text: #fff;
+    --accent: #bb86fc;
+    --toggle-bg: #333;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Roboto", Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+  .calc { width: 100%; max-width: 420px; padding: 20px; }
+  .display-container {
+    position: relative;
+    background: #1e1e1e;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    padding: 10px;
+  }
+  .expression { text-align: right; font-size: 16px; min-height: 24px; color: #888; overflow: hidden; text-overflow: ellipsis; padding: 0 10px; }
+  .display { text-align: right; font-size: 42px; padding: 10px; min-height: 60px; overflow-x: auto; background: transparent; color: var(--accent); }
+  .mode-indicator { position: absolute; top: 5px; right: 10px; font-size: 12px; color: #888; }
+  .buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 15px; }
+  button {
+    border: none; border-radius: 15px; height: 70px; font-size: 20px; font-weight: 500; cursor: pointer;
+    color: white; transition: background 0.2s, transform 0.1s;
+  }
+  button:active { transform: scale(0.95); }
+  .num { background: var(--num-bg); }
+  .func { background: var(--func-bg); font-size: 18px; }
+  .op { background: var(--op-bg); }
+  .wide { grid-column: span 2; border-radius: 15px; }
+  .toggle-container { display: flex; justify-content: center; margin-bottom: 15px; }
+  .toggle-btn {
+    background: var(--toggle-bg);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    cursor: pointer;
+    border: 1px solid #555;
+  }
+  .toggle-btn.active { background: var(--op-bg); color: white; }
+</style>
+</head>
+<body>
+<div class="calc">
+  <div class="display-container">
+    <div class="expression" id="expression"></div>
+    <div id="output" class="display">0</div>
+    <div class="mode-indicator" id="modeIndicator">DEG</div>
+  </div>
+
+  <div class="toggle-container">
+    <div class="toggle-btn active" id="degBtn" onclick="setDegMode(true)">DEG</div>
+    <div class="toggle-btn" id="radBtn" onclick="setDegMode(false)" style="margin-left: 10px;">RAD</div>
+  </div>
+
+  <div class="buttons">
+    <button class="func" onclick="memoryClear()">MC</button>
+    <button class="func" onclick="memoryRecall()">MR</button>
+    <button class="func wide" onclick="clearDisplay()">C</button>
+    <button class="func" onclick="backspace()">⌫</button>
+
+    <button class="func" onclick="addFunction('sin(')">sin</button>
+    <button class="func" onclick="addFunction('cos(')">cos</button>
+    <button class="func" onclick="addFunction('tan(')">tan</button>
+    <button class="op" onclick="addToDisplay('^')">^</button>
+
+    <button class="func" onclick="addFunction('log(')">log</button>
+    <button class="func" onclick="addFunction('ln(')">ln</button>
+    <button class="func" onclick="addFunction('√(')">√</button>
+    <button class="op" onclick="addToDisplay('/')">÷</button>
+
+    <button class="num" onclick="addToDisplay('7')">7</button>
+    <button class="num" onclick="addToDisplay('8')">8</button>
+    <button class="num" onclick="addToDisplay('9')">9</button>
+    <button class="op" onclick="addToDisplay('*')">×</button>
+
+    <button class="num" onclick="addToDisplay('4')">4</button>
+    <button class="num" onclick="addToDisplay('5')">5</button>
+    <button class="num" onclick="addToDisplay('6')">6</button>
+    <button class="op" onclick="addToDisplay('-')">-</button>
+
+    <button class="num" onclick="addToDisplay('1')">1</button>
+    <button class="num" onclick="addToDisplay('2')">2</button>
+    <button class="num" onclick="addToDisplay('3')">3</button>
+    <button class="op" onclick="addToDisplay('+')">+</button>
+
+    <button class="num wide" onclick="addToDisplay('0')">0</button>
+    <button class="num" onclick="addToDisplay('.')">.</button>
+    <button class="func" onclick="toggleParenthesis()">()</button>
+    <button class="op" onclick="calculate()">=</button>
+  </div>
+</div>
+
+<script>
+let currentInput = '0';
+let memory = 0;
+let degMode = true;
+let expression = '';
+
+// >>> Variáveis novas <<<
+let ultimoResultado = null;
+let mostrandoResultado = false;
+
+const display = document.getElementById('output');
+const expressionDisplay = document.getElementById('expression');
+
+function updateDisplay(){ display.textContent = currentInput; }
+function updateExpression(expr){ expressionDisplay.textContent = expr; }
+function updateModeIndicator() {
+  document.getElementById('modeIndicator').textContent = degMode ? 'DEG' : 'RAD';
+  document.getElementById('degBtn').classList.toggle('active', degMode);
+  document.getElementById('radBtn').classList.toggle('active', !degMode);
+}
+function setDegMode(isDeg) { degMode = isDeg; updateModeIndicator(); }
+
+function addToDisplay(value){
+  // >>> Limpa resultado quando digitar por cima <<<
+  if (mostrandoResultado && !isNaN(value)) {
+    ultimoResultado = currentInput; // guarda resultado
+    currentInput = ''; // limpa
+    mostrandoResultado = false;
+  }
+  if (currentInput === '0' && value !== '.' && !isFunctionButton(value)) { currentInput = value; }
+  else { currentInput += value; }
+  updateDisplay();
+}
+
+function isFunctionButton(value){ return ['sin(', 'cos(', 'tan(', 'log(', 'ln(', '√('].includes(value); }
+function addFunction(func){
+  if (currentInput === '0') currentInput = func;
+  else {
+    const lastChar = currentInput.slice(-1);
+    if (['+', '-', '*', '/', '^', '('].includes(lastChar)) currentInput += func;
+    else currentInput += '*' + func;
+  }
+  updateDisplay();
+}
+function toggleParenthesis(){
+  const opens  = (currentInput.match(/\(/g) || []).length;
+  const closes = (currentInput.match(/\)/g) || []).length;
+  const lastChar = currentInput.slice(-1) || '';
+  const canClose = opens > closes && /[\d.)]/.test(lastChar);
+  if (canClose) currentInput += ')';
+  else if (currentInput === '0') currentInput = '(';
+  else if (/[\d.)]/.test(lastChar)) currentInput += '*(';
+  else currentInput += '(';
+  updateDisplay();
+}
+function clearDisplay(){ currentInput = '0'; expression = ''; updateDisplay(); updateExpression(''); }
+function backspace(){ currentInput = currentInput.length === 1 ? '0' : currentInput.slice(0, -1); updateDisplay(); }
+function memoryClear(){ memory = 0; }
+function memoryRecall(){ addToDisplay(memory.toString()); }
+function round(value, precision = 12){ return parseFloat(value.toFixed(precision)); }
+
+function factorial(n){ if (n<0||!Number.isInteger(n)) return NaN; if(n<=1) return 1; let r=1; for(let i=2;i<=n;i++) r*=i; return r; }
+function degreesToRadians(d){ return d*(Math.PI/180); }
+function taylorSin(x){ let r = degMode?degreesToRadians(x):x; let n=r%(2*Math.PI); if(n>Math.PI)n-=2*Math.PI; if(n<-Math.PI)n+=2*Math.PI; let res=0; for(let k=0;k<12;k++) res+=Math.pow(-1,k)*Math.pow(n,2*k+1)/factorial(2*k+1); return round(res); }
+function taylorCos(x){ let r = degMode?degreesToRadians(x):x; let n=r%(2*Math.PI); if(n>Math.PI)n-=2*Math.PI; if(n<-Math.PI)n+=2*Math.PI; let res=0; for(let k=0;k<12;k++) res+=Math.pow(-1,k)*Math.pow(n,2*k)/factorial(2*k); return round(res); }
+function taylorTan(x){ const s=taylorSin(x),c=taylorCos(x); return Math.abs(c)<1e-12?NaN:round(s/c); }
+function taylorLn(x){ if(x<=0) throw new Error("ln inválido"); let count=0,temp=x; while(temp>2){temp/=2;count++;} while(temp<0.5){temp*=2;count--;} const z=temp-1; let res=0; for(let n=1;n<=30;n++) res+=Math.pow(-1,n+1)*Math.pow(z,n)/n; return round(count*Math.LN2+res); }
+function taylorLog10(x){ return round(taylorLn(x)/Math.LN10); }
+function taylorExp(x){ if(x>1){ const h=taylorExp(x/2); return round(h*h); } if(x<0) return round(1/taylorExp(-x)); let res=0; for(let n=0;n<30;n++) res+=Math.pow(x,n)/factorial(n); return round(res); }
+
+function convertPowers(expr){
+  return expr.replace(/([0-9.]+|\([^()]+\))\^([0-9.]+|\([^()]+\))/g, (m, base, exp)=>`Math.pow(${base},${exp})`);
+}
+
+function evaluateExpression(expr){
+  const processFunctions = (expression) => {
+    let processed = expression;
+    processed = processed.replace(/π/g, Math.PI.toString());
+    processed = processed.replace(/sin\(([^()]+)\)/g, (_, inner)=>String(taylorSin(evaluateSimpleExpression(inner))));
+    processed = processed.replace(/cos\(([^()]+)\)/g, (_, inner)=>String(taylorCos(evaluateSimpleExpression(inner))));
+    processed = processed.replace(/tan\(([^()]+)\)/g, (_, inner)=>String(taylorTan(evaluateSimpleExpression(inner))));
+    processed = processed.replace(/log\(([^()]+)\)/g, (_, inner)=>String(taylorLog10(evaluateSimpleExpression(inner))));
+    processed = processed.replace(/ln\(([^()]+)\)/g, (_, inner)=>String(taylorLn(evaluateSimpleExpression(inner))));
+    processed = processed.replace(/√\(([^()]+)\)/g, (_, inner)=>{ const v=evaluateSimpleExpression(inner); return v>=0?String(round(Math.sqrt(v))):'NaN'; });
+    processed = processed.replace(/(\d+)!/g, (_, num)=>String(factorial(parseInt(num))));
+    return processed;
+  };
+
+  function evaluateSimpleExpression(simpleExpr){
+    const parsed = convertPowers(simpleExpr.replace(/÷/g,'/').replace(/×/g,'*'));
+    try { return Function('"use strict";return(' + parsed + ')')(); }
+    catch(e){ console.error('Erro em expressão simples:',e,'expr:',simpleExpr); throw new Error('Expressão inválida'); }
+  }
+
+  const processedExpr = processFunctions(expr);
+  const finalParsed = convertPowers(processedExpr.replace(/÷/g,'/').replace(/×/g,'*'));
+  try { return Function('"use strict";return(' + finalParsed + ')')(); }
+  catch(e){ console.error('Erro na avaliação final:',e,'expr:',expr); throw new Error('Expressão inválida'); }
+}
+
+function calculate(){
+  try{
+    expression = currentInput;
+    updateExpression(currentInput + ' =');
+    let result = evaluateExpression(currentInput);
+    if (isNaN(result)) currentInput='Erro';
+    else if (!isFinite(result)) currentInput=result>0?'Infinito':'-Infinito';
+    else if (Math.abs(result)<1e-10) currentInput='0';
+    else if (Math.abs(result)<1e6 && Math.abs(result)>1e-6) currentInput=parseFloat(result.toFixed(10)).toString();
+    else currentInput=result.toExponential(8);
+    updateDisplay();
+
+    // >>> Ativa modo resultado <<<
+    mostrandoResultado = true;
+
+  } catch (error){
+    currentInput='Erro'; updateDisplay();
+    setTimeout(()=>{ currentInput='0'; expression=''; updateDisplay(); updateExpression(''); },2000);
+  }
+}
+
+updateModeIndicator();
+</script>
+</body>
+</html>
